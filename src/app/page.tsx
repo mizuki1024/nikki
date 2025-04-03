@@ -18,8 +18,13 @@ import { RefreshCw, List } from "lucide-react";
 
 import { fetchDiaryEntries, fetchDiaryEntryByDate } from "../lib/firebase";
 import { useUser } from "@/lib/UserContext";
+<<<<<<< HEAD
 import { Button } from "../../components/ui/button";
 import { Card, CardContent } from "../../components/ui/card";
+=======
+import { Button } from "./components/ui/button";
+import { Card, CardContent } from "./components/ui/card";
+>>>>>>> a5ab524 (componentsフォルダをapp配下に移動)
 
 interface DiaryEntry {
   id: string;
