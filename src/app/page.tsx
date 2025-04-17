@@ -16,15 +16,9 @@ import {
 import { ja } from "date-fns/locale";
 import { RefreshCw, List } from "lucide-react";
 
-import { fetchDiaryEntries, fetchDiaryEntryByDate } from "../lib/firebase";
 import { useUser } from "@/lib/UserContext";
-<<<<<<< HEAD
 import { Button } from "../../components/ui/button";
 import { Card, CardContent } from "../../components/ui/card";
-=======
-import { Button } from "./components/ui/button";
-import { Card, CardContent } from "./components/ui/card";
->>>>>>> a5ab524 (componentsフォルダをapp配下に移動)
 
 interface DiaryEntry {
   id: string;
@@ -71,7 +65,11 @@ export default function DiaryCalendar() {
       try {
         setLoading(true);
         setError(null);
-        const entries = await fetchDiaryEntries(userId);
+        const res = await fetch(`/api/diary?userId=${userId}`);
+        if (!res.ok) {
+          throw new Error("日記データの取得に失敗しました");
+        }
+        const entries = await res.json();
         setDiaryEntries(entries as DiaryEntry[]);
       } catch (e) {
         console.error(e);
@@ -90,7 +88,11 @@ export default function DiaryCalendar() {
     if (!userId) return;
 
     try {
-      const diaryEntry = await fetchDiaryEntryByDate(userId, formattedDate);
+      const res = await fetch(`/api/diary?userId=${userId}&date=${formattedDate}`);
+      if (!res.ok) {
+        throw new Error("日記データの取得に失敗しました");
+      }
+      const diaryEntry = await res.json();
       const path = diaryEntry ? `/diary/${formattedDate}` : `/diary/edit?date=${formattedDate}`;
       router.push(path);
     } catch (e) {
@@ -164,8 +166,22 @@ export default function DiaryCalendar() {
 
   // 📋 リスト表示
   const renderDiaryList = () => {
+    const startOfCurrentMonth = startOfMonth(currentDate);
+    const endOfCurrentMonth = endOfMonth(currentDate);
+
     const filtered = diaryEntries
-      .filter((entry) => (isPublicView ? entry.isPublic : true))
+      .filter((entry) => {
+        const entryDate =
+          typeof entry.date === "string"
+            ? new Date(entry.date)
+            : new Date(entry.date._seconds * 1000);
+
+        return (
+          entryDate >= startOfCurrentMonth &&
+          entryDate <= endOfCurrentMonth &&
+          (isPublicView ? entry.isPublic : true)
+        );
+      })
       .sort((a, b) => {
         const dateA = typeof a.date === "string" ? new Date(a.date) : new Date(a.date._seconds * 1000);
         const dateB = typeof b.date === "string" ? new Date(b.date) : new Date(b.date._seconds * 1000);
@@ -173,7 +189,7 @@ export default function DiaryCalendar() {
       });
 
     if (filtered.length === 0) {
-      return <div className="text-center text-gray-500">表示できる日記がありません</div>;
+      return <div className="text-center text-gray-500">この月には日記がありません</div>;
     }
 
     return (
@@ -213,7 +229,6 @@ export default function DiaryCalendar() {
     );
   };
 
-  // 🌀 ローディング中
   if (authLoading || loading) {
     return (
       <div className="flex justify-center items-center h-screen">
@@ -222,7 +237,6 @@ export default function DiaryCalendar() {
     );
   }
 
-  // ❌ エラー
   if (error) {
     return (
       <div className="flex justify-center items-center h-screen">
@@ -231,10 +245,8 @@ export default function DiaryCalendar() {
     );
   }
 
-  // ✅ 通常表示
   return (
     <div className="container mx-auto py-8 px-4">
-      {/* ヘッダー */}
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">日記</h1>
         <div className="flex gap-2">
@@ -247,11 +259,9 @@ export default function DiaryCalendar() {
         </div>
       </div>
 
-      {/* カレンダー or リスト */}
       <Card>
         <CardContent className="p-6">
           <div>
-            {/* 月の切り替え */}
             <div className="flex justify-between items-center mb-4">
               <Button variant="ghost" onClick={() => setCurrentDate(subMonths(currentDate, 1))}>&lt;</Button>
               <h2 className="text-xl font-medium">
@@ -260,7 +270,6 @@ export default function DiaryCalendar() {
               <Button variant="ghost" onClick={() => setCurrentDate(addMonths(currentDate, 1))}>&gt;</Button>
             </div>
 
-            {/* メイン表示 */}
             {viewMode === "calendar" ? renderCalendarDays() : renderDiaryList()}
           </div>
         </CardContent>

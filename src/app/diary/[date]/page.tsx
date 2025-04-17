@@ -6,7 +6,6 @@ import { format } from "date-fns";
 import { ja } from "date-fns/locale";
 import { ArrowLeft, Heart, Edit2, CloudRain, Sun, CloudSun } from "lucide-react";
 import Image from "next/image";
-import { fetchDiaryEntryByDate } from "../../../lib/firebase";
 import { useUser } from "../../../lib/UserContext";
 
 // 型定義
@@ -48,7 +47,19 @@ export default function DiaryDetailPage() {
 
       try {
         setLoading(true);
-        const diaryEntry = await fetchDiaryEntryByDate(user.uid, date);
+        const res = await fetch(`/api/diary?userId=${user.uid}`);
+        if (!res.ok) {
+          throw new Error("日記データの取得に失敗しました");
+        }
+        const diaryEntries = await res.json();
+
+        // 指定された日付に一致する日記データを取得
+        const diaryEntry = diaryEntries.find(
+          (entry: DiaryEntry) =>
+            typeof entry.date === "string"
+              ? entry.date === date
+              : format(new Date(entry.date._seconds * 1000), "yyyy-MM-dd") === date
+        );
 
         if (diaryEntry) {
           setEntry({ ...diaryEntry, isPublic: false, isLiked: false });
@@ -65,6 +76,10 @@ export default function DiaryDetailPage() {
 
     loadDiaryEntry();
   }, [userLoading, user?.uid, date, router]);
+
+  useEffect(() => {
+    console.log("Entry data:", entry);
+  }, [entry]);
 
   // 表示アイコン
   const renderWeatherIcon = (weather: DiaryEntry["weather"]) => {
@@ -109,11 +124,17 @@ export default function DiaryDetailPage() {
 
   if (!entry) return null;
 
-  const formattedDate = format(
-    new Date(typeof entry.date === "string" ? entry.date : entry.date._seconds * 1000),
-    "yyyy年MM月dd日",
-    { locale: ja }
-  );
+  const formattedDate = entry?.date
+    ? format(
+        new Date(
+          typeof entry.date === "string"
+            ? entry.date
+            : entry.date._seconds * 1000 || Date.now() // 安全にデフォルト値を設定
+        ),
+        "yyyy年MM月dd日",
+        { locale: ja }
+      )
+    : "日付不明"; // entry.date がない場合のフォールバック
 
   return (
     <div className="min-h-screen bg-white">
@@ -140,7 +161,7 @@ export default function DiaryDetailPage() {
         <p className="text-lg leading-relaxed">{entry.content}</p>
 
         {/* 画像表示 */}
-        {entry.images.length > 0 && (
+        {entry.images && entry.images.length > 0 && (
           <div className="grid grid-cols-2 gap-2 mt-4">
             {entry.images.map((image, index) => (
               <Image
@@ -156,13 +177,15 @@ export default function DiaryDetailPage() {
         )}
 
         {/* タグ表示 */}
-        <div className="flex flex-wrap gap-2 mt-4">
-          {entry.tags.map((tag, index) => (
-            <span key={index} className="bg-gray-100 text-blue-600 px-3 py-1 rounded-md">
-              #{tag}
-            </span>
-          ))}
-        </div>
+        {entry.tags && entry.tags.length > 0 && (
+          <div className="flex flex-wrap gap-2 mt-4">
+            {entry.tags.map((tag, index) => (
+              <span key={index} className="bg-gray-100 text-blue-600 px-3 py-1 rounded-md">
+                #{tag}
+              </span>
+            ))}
+          </div>
+        )}
 
         {/* ボタン表示 */}
         <div className="flex justify-between items-center mt-6">

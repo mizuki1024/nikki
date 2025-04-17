@@ -14,12 +14,6 @@ import {
   Image as ImageIcon,
 } from "lucide-react";
 import Image from "next/image";
-
-import {
-  fetchDiaryEntryByDate,
-  createDiaryEntry,
-  updateDiaryEntry,
-} from "@/lib/firebase";
 import { useUser } from "../../../lib/UserContext";
 
 // 型定義
@@ -54,14 +48,26 @@ export default function DiaryEditPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  // 初期データ読み込み
   useEffect(() => {
     const loadDiaryEntry = async () => {
       if (!userId || !date) return;
 
       try {
         setLoading(true);
-        const diaryEntry = await fetchDiaryEntryByDate(userId, date);
+        const res = await fetch(`/api/diary?userId=${userId}`);
+        if (!res.ok) {
+          throw new Error("日記データの取得に失敗しました");
+        }
+        const diaryEntries = await res.json(); // 配列として取得
+        console.log("Fetched diary entries:", diaryEntries);
+
+        // 指定された日付に一致する日記データを検索
+        const diaryEntry = diaryEntries.find(
+          (entry: DiaryEntry) =>
+            typeof entry.date === "string"
+              ? entry.date === date
+              : format(new Date(entry.date._seconds * 1000), "yyyy-MM-dd") === date
+        );
 
         if (diaryEntry) {
           setEntry({
@@ -69,12 +75,21 @@ export default function DiaryEditPage() {
             isPublic: diaryEntry.isPublic ?? false,
             isLiked: diaryEntry.isLiked ?? false,
           });
-          setContent(diaryEntry.content);
-          setWeather(diaryEntry.weather);
-          setMood(diaryEntry.mood);
-          setTags(diaryEntry.tags.join(", "));
+          setContent(diaryEntry.content || ""); // データがあれば反映
+          setWeather(diaryEntry.weather || "sunny");
+          setMood(diaryEntry.mood || "good");
+          setTags(diaryEntry.tags ? diaryEntry.tags.join(", ") : ""); // タグをカンマ区切りで反映
           setImages(diaryEntry.images ?? []);
           setIsPublic(diaryEntry.isPublic ?? false);
+        } else {
+          // 新規作成用の初期値を設定
+          setEntry(null);
+          setContent("");
+          setWeather("sunny");
+          setMood("good");
+          setTags("");
+          setImages([]);
+          setIsPublic(false);
         }
       } catch (err) {
         console.error("Error fetching diary entry:", err);
@@ -98,26 +113,37 @@ export default function DiaryEditPage() {
         .map((tag) => tag.trim())
         .filter(Boolean);
 
+      const payload = {
+        date,
+        content,
+        weather,
+        mood,
+        tags: tagArray,
+        images,
+        isPublic,
+        isLiked: entry?.isLiked ?? false,
+      };
+
       if (entry) {
-        await updateDiaryEntry(userId, entry.id, {
-          content,
-          weather,
-          mood,
-          tags: tagArray,
-          images,
-          isPublic,
+        // 更新処理
+        const res = await fetch(`/api/diary`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId, entryId: entry.id, updatedData: payload }),
         });
+        if (!res.ok) {
+          throw new Error("日記データの更新に失敗しました");
+        }
       } else {
-        await createDiaryEntry(userId, {
-          date,
-          content,
-          weather,
-          mood,
-          tags: tagArray,
-          images,
-          isPublic,
-          isLiked: false,
+        // 新規作成処理
+        const res = await fetch(`/api/diary`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId, entry: payload }),
         });
+        if (!res.ok) {
+          throw new Error("日記データの作成に失敗しました");
+        }
       }
 
       router.replace(`/diary/${date}`);
